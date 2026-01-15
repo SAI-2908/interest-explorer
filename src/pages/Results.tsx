@@ -3,16 +3,18 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { FloatingCircles } from "@/components/FloatingCircles";
-import { CareerCard } from "@/components/CareerCard";
 import { JobModal } from "@/components/JobModal";
-import { interests, jobDetails, SkillLevel, Career } from "@/data/careers";
+import { interests, SkillLevel } from "@/data/careers";
+import { getCombinedCareers, CombinedCareer } from "@/data/combinedCareers";
+import { cn } from "@/lib/utils";
 
 const Results = () => {
   const navigate = useNavigate();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [skillLevel, setSkillLevel] = useState<SkillLevel>("beginner");
+  const [combinedCareers, setCombinedCareers] = useState<CombinedCareer[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedJob, setSelectedJob] = useState<{ title: string; category: string } | null>(null);
+  const [selectedCareer, setSelectedCareer] = useState<CombinedCareer | null>(null);
 
   useEffect(() => {
     const savedInterests = localStorage.getItem("selectedInterests");
@@ -23,14 +25,20 @@ const Results = () => {
       return;
     }
 
-    setSelectedInterests(JSON.parse(savedInterests));
+    const parsedInterests = JSON.parse(savedInterests);
+    setSelectedInterests(parsedInterests);
+    
     if (savedSkillLevel) {
       setSkillLevel(savedSkillLevel);
     }
+
+    // Get combined careers based on all selected interests
+    const careers = getCombinedCareers(parsedInterests, savedSkillLevel || "beginner");
+    setCombinedCareers(careers);
   }, [navigate]);
 
-  const handleKnowMore = (title: string, category: string) => {
-    setSelectedJob({ title, category });
+  const handleKnowMore = (career: CombinedCareer) => {
+    setSelectedCareer(career);
     setModalOpen(true);
   };
 
@@ -38,12 +46,6 @@ const Results = () => {
     localStorage.removeItem("selectedInterests");
     localStorage.removeItem("selectedSkillLevel");
     navigate("/");
-  };
-
-  const getCareersByInterest = (interestId: string): Career[] => {
-    const interest = interests.find((i) => i.id === interestId);
-    if (!interest) return [];
-    return interest[skillLevel] || [];
   };
 
   const getInterestName = (interestId: string): string => {
@@ -54,6 +56,17 @@ const Results = () => {
   const getInterestEmoji = (interestId: string): string => {
     const interest = interests.find((i) => i.id === interestId);
     return interest?.emoji || "📌";
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "Big Demand":
+        return "text-accent";
+      case "Unique":
+        return "text-secondary";
+      default:
+        return "text-muted-foreground";
+    }
   };
 
   return (
@@ -107,7 +120,7 @@ const Results = () => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="glass-card rounded-2xl p-6 md:p-8 text-center max-w-3xl w-full z-10 border border-primary/20 max-h-[80vh] overflow-y-auto"
+        className="glass-card rounded-2xl p-6 md:p-8 text-center max-w-2xl w-full z-10 border border-primary/20"
         style={{
           animation: "glowing 3s infinite alternate",
         }}
@@ -124,41 +137,59 @@ const Results = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-muted-foreground mb-6"
+          className="text-muted-foreground mb-4"
         >
-          Careers that would suit you just perfect!!
+          Careers that blend your passions perfectly!
         </motion.p>
 
-        <div className="space-y-6 text-left">
-          {selectedInterests.map((interestId, sectionIndex) => (
-            <motion.div
+        {/* Selected interests display */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="flex flex-wrap justify-center gap-2 mb-6"
+        >
+          {selectedInterests.map((interestId) => (
+            <span
               key={interestId}
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: sectionIndex * 0.2, type: "spring" }}
-              className="glass-card rounded-xl p-4 border border-border/30"
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/20 text-sm"
             >
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-2xl">{getInterestEmoji(interestId)}</span>
-                <h2 className="text-lg md:text-xl font-bold text-foreground">
-                  {getInterestName(interestId)}
-                </h2>
-              </div>
+              {getInterestEmoji(interestId)} {getInterestName(interestId)}
+            </span>
+          ))}
+          <span className="inline-flex items-center px-3 py-1 rounded-full bg-accent/20 text-sm text-accent capitalize">
+            {skillLevel}
+          </span>
+        </motion.div>
 
-              <div className="space-y-3">
-                <h3 className="text-accent font-semibold text-sm capitalize">
-                  {skillLevel} Level Careers
-                </h3>
-                {getCareersByInterest(interestId).map((career, index) => (
-                  <CareerCard
-                    key={career.title}
-                    type={career.type}
-                    title={career.title}
-                    onKnowMore={() => handleKnowMore(career.title, getInterestName(interestId))}
-                    delay={index}
-                  />
-                ))}
+        {/* Combined Career Results */}
+        <div className="space-y-4 text-left">
+          {combinedCareers.map((career, index) => (
+            <motion.div
+              key={career.title}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 + index * 0.15 }}
+              className="flex items-center justify-between p-4 rounded-xl bg-card/50 border border-border/50 hover:border-primary/30 transition-all"
+            >
+              <div className="flex flex-col gap-1 flex-1">
+                <span className={cn("text-xs md:text-sm font-semibold", getTypeColor(career.type))}>
+                  {career.type}
+                </span>
+                <span className="text-base md:text-lg font-medium text-foreground">
+                  {career.title}
+                </span>
+                <span className="text-xs text-muted-foreground line-clamp-1">
+                  {career.description}
+                </span>
               </div>
+              <Button
+                size="sm"
+                onClick={() => handleKnowMore(career)}
+                className="bg-secondary hover:bg-primary text-secondary-foreground hover:text-primary-foreground transition-all duration-300 text-xs md:text-sm ml-3"
+              >
+                Know More
+              </Button>
             </motion.div>
           ))}
         </div>
@@ -179,13 +210,96 @@ const Results = () => {
         </motion.div>
       </motion.div>
 
-      <JobModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        jobTitle={selectedJob?.title || ""}
-        category={selectedJob?.category || ""}
-        jobDetail={selectedJob ? jobDetails[selectedJob.title] : undefined}
-      />
+      {/* Custom Modal for combined careers */}
+      {modalOpen && selectedCareer && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setModalOpen(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl p-6 glass-card border border-border/50 shadow-2xl"
+            style={{
+              background: "linear-gradient(to bottom right, hsl(220 12% 14%), hsl(220 12% 10%))"
+            }}
+          >
+            <button
+              onClick={() => setModalOpen(false)}
+              className="absolute top-4 right-4 text-foreground hover:text-primary transition-colors hover:rotate-90 duration-300 text-xl"
+            >
+              ✕
+            </button>
+
+            <div className="text-center mb-6 pb-4 border-b border-border/30">
+              <h2 className="text-xl md:text-2xl font-bold text-accent font-montserrat">
+                {selectedCareer.title}
+              </h2>
+              <p className={cn("text-sm mt-1", getTypeColor(selectedCareer.type))}>
+                {selectedCareer.type} Career
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="flex items-center gap-2 text-primary font-semibold mb-2">
+                  <span>📝</span> Job Description
+                </h3>
+                <div className="bg-background/20 p-3 rounded-lg text-sm leading-relaxed">
+                  {selectedCareer.description}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="flex items-center gap-2 text-primary font-semibold mb-2">
+                  <span>🛠️</span> Required Skills
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedCareer.skills.map((skill, index) => (
+                    <span
+                      key={index}
+                      className="bg-accent/20 text-accent-foreground px-3 py-1 rounded-full text-xs md:text-sm"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="flex items-center gap-2 text-primary font-semibold mb-2">
+                  <span>🎓</span> Education
+                </h3>
+                <div className="bg-background/20 p-3 rounded-lg text-sm">
+                  {selectedCareer.education}
+                </div>
+              </div>
+
+              {selectedCareer.matchedInterests.length > 0 && (
+                <div>
+                  <h3 className="flex items-center gap-2 text-primary font-semibold mb-2">
+                    <span>🎯</span> Combines Your Interests
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCareer.matchedInterests.map((interestId) => (
+                      <span
+                        key={interestId}
+                        className="bg-primary/20 px-3 py-1 rounded-full text-xs md:text-sm"
+                      >
+                        {getInterestEmoji(interestId)} {getInterestName(interestId)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
       <style>{`
         @keyframes glowing {
